@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
@@ -16,7 +17,11 @@ type Store struct {
 }
 
 func New(path string) (*Store, error) {
-	db, err := badger.Open(badger.DefaultOptions(path))
+	opts := badger.DefaultOptions(path)
+	if path == "" {
+		opts = opts.WithInMemory(true)
+	}
+	db, err := badger.Open(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +41,7 @@ func (s *Store) AddToPartfolio(userID int, secid string, percent float64) error 
 			return ErrUserIsFinished
 		}
 
-		key := getPartfolioPrefix(userID) + "_" + secid
+		key := getPartfolioPrefix(userID) + secid
 		return txn.Set([]byte(key), float64ToBytes(percent))
 	})
 }
@@ -74,7 +79,8 @@ func (s *Store) GetPartfolio(userID int) (Partfolio, error) {
 			item := it.Item()
 			k := item.Key()
 			err := item.Value(func(v []byte) error {
-				partfolio[string(k)] = bytesToFloat64(v)
+				key := strings.TrimPrefix(string(k), prefix)
+				partfolio[key] = bytesToFloat64(v)
 				return nil
 			})
 			if err != nil {
