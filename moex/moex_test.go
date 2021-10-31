@@ -17,26 +17,32 @@ func TestMoexAPI_GetAllSecuritiesPrices(t *testing.T) {
 
 	t.Cleanup(server.Close)
 
-	api := &MoexAPI{server.Client()}
+	api := &API{server.Client()}
 
 	prices, err := api.GetAllSecuritiesPrices(EngineStock, MarketShares)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expected := map[string]float64{
-		"AFKS": 27.422,
+	expected := map[string]StockInfo{
+		"AFKS": {
+			Price:     27.422,
+			ShortName: "Система ао",
+		},
 	}
 
-	for expectedSecid, expectedPrice := range expected {
-		price, ok := prices[expectedSecid]
+	for expectedSecid, expected := range expected {
+		info, ok := prices[expectedSecid]
 		if !ok {
 			t.Errorf("expected to get secid %s", expectedSecid)
 			continue
 		}
 
-		if price != expectedPrice {
-			t.Errorf("expected price %f, got %f", expectedPrice, price)
+		if info.Price != expected.Price {
+			t.Errorf("expected price %f, got %f", expected.Price, info.Price)
+		}
+		if info.ShortName != expected.ShortName {
+			t.Errorf("expected name %q, got %q", expected.ShortName, info.ShortName)
 		}
 	}
 }

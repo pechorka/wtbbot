@@ -24,11 +24,16 @@ const (
 	MarketForeignndm    = "foreignndm"
 )
 
-type MoexAPI struct {
+type API struct {
 	Client *http.Client
 }
 
-func (api *MoexAPI) GetAllSecuritiesPrices(engine, market string) (map[string]float64, error) {
+type StockInfo struct {
+	Price     float64
+	ShortName string
+}
+
+func (api *API) GetAllSecuritiesPrices(engine, market string) (map[string]StockInfo, error) {
 	urlStr := "http://iss.moex.com/iss/engines/" + engine + "/markets/" + market + "/securities.json"
 
 	var respBody struct {
@@ -47,7 +52,7 @@ func (api *MoexAPI) GetAllSecuritiesPrices(engine, market string) (map[string]fl
 		prevPriceIndex = 15
 	)
 
-	res := make(map[string]float64)
+	res := make(map[string]StockInfo)
 
 	for i, data := range respBody.Securities.Data {
 		if data[prevPriceIndex] == nil { //price not available
@@ -59,18 +64,26 @@ func (api *MoexAPI) GetAllSecuritiesPrices(engine, market string) (map[string]fl
 			return nil, errors.Errorf("SECID for data %d is not a string, got %T", i, data[secidIndex])
 		}
 
+		shortName, ok := data[shortNameIndex].(string)
+		if !ok {
+			return nil, errors.Errorf("SHORTNAME for data %d is not a string, got %T", i, data[shortNameIndex])
+		}
+
 		prevPrice, ok := data[prevPriceIndex].(float64)
 		if !ok {
 			return nil, errors.Errorf("PREVWAPRICE for data %d is not a number, got %T", i, data[prevPriceIndex])
 		}
 
-		res[secid] = prevPrice
+		res[secid] = StockInfo{
+			Price:     prevPrice,
+			ShortName: shortName,
+		}
 	}
 
 	return res, nil
 }
 
-func (api *MoexAPI) get(urlStr string, respBody interface{}) error {
+func (api *API) get(urlStr string, respBody interface{}) error {
 	u, err := url.Parse(urlStr)
 	if err != nil {
 		return errors.Wrap(err, "error while parsing url")
