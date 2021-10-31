@@ -41,6 +41,14 @@ func (s *Store) AddToPartfolio(userID int, secid string, percent float64) error 
 	})
 }
 
+func (s *Store) IsUserFinished(userID int) (finished bool, err error) {
+	err = s.db.View(func(txn *badger.Txn) error {
+		finished, err = s.isUserFinished(txn, userID)
+		return err
+	})
+	return finished, err
+}
+
 func (s *Store) Finish(userID int) error {
 	return s.db.Update(func(txn *badger.Txn) error {
 		finished, err := s.isUserFinished(txn, userID)
