@@ -17,7 +17,7 @@ func TestMoexAPI_GetAllSecuritiesPrices(t *testing.T) {
 
 	t.Cleanup(server.Close)
 
-	api := &API{server.Client()}
+	api := New(Opts{Client: server.Client()})
 
 	prices, err := api.GetAllSecuritiesPrices(EngineStock, MarketShares)
 	if err != nil {

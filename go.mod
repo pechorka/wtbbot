@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/pkg/errors v0.9.1
+	gopkg.in/tucnak/telebot.v2 v2.4.0
 )
 
 require (

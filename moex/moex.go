@@ -25,7 +25,28 @@ const (
 )
 
 type API struct {
-	Client *http.Client
+	client  *http.Client
+	toCache bool
+	cashe   map[string]map[string]StockInfo
+}
+
+type Opts struct {
+	Client  *http.Client
+	ToCache bool
+}
+
+func New(opts Opts) *API {
+	api := API{
+		client:  opts.Client,
+		toCache: opts.ToCache,
+		cashe:   make(map[string]map[string]StockInfo),
+	}
+
+	if api.client == nil {
+		api.client = http.DefaultClient
+	}
+
+	return &api
 }
 
 type StockInfo struct {
@@ -80,6 +101,10 @@ func (api *API) GetAllSecuritiesPrices(engine, market string) (map[string]StockI
 		}
 	}
 
+	if api.toCache {
+		api.cashe[engine+market] = res
+	}
+
 	return res, nil
 }
 
@@ -89,7 +114,7 @@ func (api *API) get(urlStr string, respBody interface{}) error {
 		return errors.Wrap(err, "error while parsing url")
 	}
 
-	resp, err := api.Client.Get(u.String())
+	resp, err := api.client.Get(u.String())
 	if err != nil {
 		return errors.Wrap(err, "fetching data from moex")
 	}
