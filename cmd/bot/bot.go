@@ -10,7 +10,7 @@ import (
 	"github.com/pechorka/whattobuy/moex"
 	"github.com/pechorka/whattobuy/store"
 	"github.com/pkg/errors"
-	"gopkg.in/tucnak/telebot.v2"
+
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
@@ -157,16 +157,16 @@ func (b *Bot) buy(m *tb.Message) {
 	b.reply(m, reply.String())
 }
 
-func (b *Bot) onError(m *telebot.Message, err error) {
+func (b *Bot) onError(m *tb.Message, err error) {
 	log.Printf("[ERROR] %v", err)
 	b.reply(m, "Ошибка на сервере: "+err.Error())
 }
 
-func (b *Bot) onInvalidInput(m *telebot.Message, err error) {
+func (b *Bot) onInvalidInput(m *tb.Message, err error) {
 	b.reply(m, "Неверный ввод: "+err.Error())
 }
 
-func (b *Bot) reply(m *telebot.Message, msg string) {
+func (b *Bot) reply(m *tb.Message, msg string) {
 	_, err := b.telebot.Reply(m, msg)
 	if err != nil {
 		log.Printf("[ERROR] while replying: %v", err)
