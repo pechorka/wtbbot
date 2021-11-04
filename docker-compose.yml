@@ -7,6 +7,7 @@ services:
         dockerfile: ./docker/wtbbot/Dockerfile
       ports:
         - 9090:9090
+      restart: always
       environment:
         REDIS_ADDR: wtbbot-redis:6379
         TOKEN: $TOKEN
