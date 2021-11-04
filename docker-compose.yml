@@ -1,0 +1,14 @@
+version: '3'
+services:
+  wtbbot:
+      container_name: wtbbot
+      build:
+        context: .
+        dockerfile: ./docker/wtbbot/Dockerfile
+      ports:
+        - 9090:9090
+      environment:
+        REDIS_ADDR: wtbbot-redis:6379
+  redis:
+      image: redis:6.2.6-alpine3.14
+      container_name: wtbbot-redis

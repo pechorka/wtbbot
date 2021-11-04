@@ -1,5 +1,7 @@
 build:
 	go build -o bin/bot ./cmd/bot
 
-run: build
+run:
 	./bin/bot --cfg=./cfg.json
+
+brun: build run
