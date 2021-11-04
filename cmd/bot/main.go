@@ -23,6 +23,9 @@ type config struct {
 	CacheMOEXAPIResp bool   `json:"cache_moex_api_resp"`
 	StorePath        string `json:"store_path"`
 	RedisAddr        string `json:"redis_addr"`
+	WebHookURL       string `json:"web_hook_url"`
+	TLSKey           string `json:"tls_key"`
+	TLSCert          string `json:"tls_cert"`
 }
 
 func main() {
@@ -88,11 +91,12 @@ func run() error {
 
 	api := moex.New(moex.Opts{Cache: redisCache})
 
-	b, err := NewBot(Opts{
-		Token:   cfg.Token,
-		Timeout: time.Duration(cfg.TimeoutSec) * time.Second,
-		Store:   store,
-		MoexAPI: api,
+	b, err := NewBot(&Opts{
+		Token:      cfg.Token,
+		Timeout:    time.Duration(cfg.TimeoutSec) * time.Second,
+		Store:      store,
+		MoexAPI:    api,
+		WebHookURL: cfg.WebHookURL,
 	})
 
 	if err != nil {

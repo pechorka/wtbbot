@@ -22,19 +22,37 @@ type Bot struct {
 }
 
 type Opts struct {
-	Token   string
-	Timeout time.Duration
-	Store   *store.Store
-	MoexAPI *moex.API
+	Token      string
+	Timeout    time.Duration
+	WebHookURL string
+	Store      *store.Store
+	MoexAPI    *moex.API
+	TLSKey     string
+	TLSCert    string
 }
 
-func NewBot(opts Opts) (*Bot, error) {
+func (opts *Opts) getPoller() tb.Poller {
+	if opts.WebHookURL != "" {
+		return &tb.Webhook{
+			Listen: opts.WebHookURL,
+			TLS: &tb.WebhookTLS{
+				Key:  opts.TLSKey,
+				Cert: opts.TLSCert,
+			},
+		}
+	}
+
+	return &tb.LongPoller{
+		Timeout: opts.Timeout,
+	}
+}
+
+func NewBot(opts *Opts) (*Bot, error) {
 	telebot, err := tb.NewBot(tb.Settings{
-		Token: opts.Token,
-		Poller: &tb.LongPoller{
-			Timeout: opts.Timeout,
-		},
+		Token:  opts.Token,
+		Poller: opts.getPoller(),
 	})
+
 	if err != nil {
 		return nil, err
 	}
