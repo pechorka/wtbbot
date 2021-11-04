@@ -149,7 +149,7 @@ func (b *Bot) buy(m *tb.Message) {
 		b.reply(m, "У вас еще не заполнено партфолио или вы не ввели команду /finish")
 		return
 	}
-	montlySum, err := strconv.ParseFloat(m.Payload, 32)
+	capital, err := strconv.ParseFloat(m.Payload, 32)
 	if err != nil {
 		b.onInvalidInput(m, errors.Wrap(err, "сумма на покупку не число"))
 		return
@@ -164,12 +164,25 @@ func (b *Bot) buy(m *tb.Message) {
 		b.onError(m, errors.Wrap(err, "error while retriving prices"))
 		return
 	}
-	var reply strings.Builder
+	var (
+		reply      strings.Builder
+		totalSpend float64
+	)
 	for secid, percent := range partfolio {
-		sum := montlySum * percent / 100
-		lots := sum / infos[secid].Price
-		reply.WriteString(fmt.Sprintf("%s - %f\n", secid, lots))
+		info := infos[secid]
+		sum := capital * percent / 100
+		lots := sum / info.Price
+		if lots < info.LotSize {
+			reply.WriteString(fmt.Sprintf("%s - %.0f%% капитала недостаточно, чтобы купить 1 лот (можно купить %.0f акций, а размер лота %.0f акций)\n", secid, percent, lots, info.LotSize))
+			continue
+		}
+		lots /= info.LotSize
+		lots = float64(int(lots))
+		spendMoney := lots * info.Price * info.LotSize
+		reply.WriteString(fmt.Sprintf("%s - %.0f лотов (%.2f денег)\n", secid, lots, spendMoney))
+		totalSpend += spendMoney
 	}
+	reply.WriteString(fmt.Sprintf("Итого на покупку уйдет %.2f", totalSpend))
 	b.reply(m, reply.String())
 }
 

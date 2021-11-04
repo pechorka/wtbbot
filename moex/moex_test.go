@@ -31,6 +31,7 @@ func TestMoexAPI_loadSecuritiesPrices(t *testing.T) {
 		"AFKS": {
 			Price:     27.785,
 			ShortName: "Система ао",
+			LotSize:   100,
 		},
 	}
 

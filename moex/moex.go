@@ -58,6 +58,7 @@ func New(opts Opts) *API {
 type StockInfo struct {
 	Price     float64
 	ShortName string
+	LotSize   float64
 }
 
 func (api *API) Get(ctx context.Context, secid string) (*StockInfo, error) {
@@ -82,14 +83,14 @@ func (api *API) GetMultiple(ctx context.Context, secids ...string) (map[string]S
 }
 
 func (api *API) getFromMoex(ctx context.Context, secid string) (*StockInfo, error) {
-	if err := api.updateCache(ctx); err != nil {
+	if err := api.UpdateCache(ctx); err != nil {
 		return nil, err
 	}
 
 	return api.getFromCache(ctx, secid)
 }
 
-func (api *API) updateCache(ctx context.Context) error {
+func (api *API) UpdateCache(ctx context.Context) error {
 	gr, ectx := errgroup.WithContext(ctx)
 
 	loadAndCache := func(ctx context.Context, engine, market string) error {
@@ -136,6 +137,7 @@ func (api *API) loadSecuritiesPrices(ctx context.Context, engine, market string)
 		secidIndex     = 0
 		boardID        = 1
 		shortNameIndex = 2
+		lotSizeIndex   = 4
 		prevPriceIndex = 15
 	)
 
@@ -168,9 +170,15 @@ func (api *API) loadSecuritiesPrices(ctx context.Context, engine, market string)
 			return nil, errors.Errorf("PREVWAPRICE for data %d is not a number, got %T", i, data[prevPriceIndex])
 		}
 
+		lotSize, ok := data[lotSizeIndex].(float64)
+		if !ok {
+			return nil, errors.Errorf("LOTSIZE for data %d is not a number, got %T", i, data[lotSizeIndex])
+		}
+
 		res[secid] = StockInfo{
 			Price:     prevPrice,
 			ShortName: shortName,
+			LotSize:   lotSize,
 		}
 	}
 
