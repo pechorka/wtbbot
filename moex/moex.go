@@ -1,12 +1,20 @@
 package moex
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
-	"net/url"
+	"time"
 
+	"github.com/go-redis/cache/v8"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
+)
+
+var (
+	ErrNotFound        = errors.New("not found")
+	errCacheNotUpdated = errors.New("cache not updated")
 )
 
 // all engines are listed here http://iss.moex.com/iss/engines
@@ -25,21 +33,19 @@ const (
 )
 
 type API struct {
-	client  *http.Client
-	toCache bool
-	cashe   map[string]map[string]StockInfo
+	client *http.Client
+	cache  *cache.Cache
 }
 
 type Opts struct {
-	Client  *http.Client
-	ToCache bool
+	Client *http.Client
+	Cache  *cache.Cache
 }
 
 func New(opts Opts) *API {
 	api := API{
-		client:  opts.Client,
-		toCache: opts.ToCache,
-		cashe:   make(map[string]map[string]StockInfo),
+		client: opts.Client,
+		cache:  opts.Cache,
 	}
 
 	if api.client == nil {
@@ -54,7 +60,66 @@ type StockInfo struct {
 	ShortName string
 }
 
-func (api *API) GetAllSecuritiesPrices(engine, market string) (map[string]StockInfo, error) {
+func (api *API) Get(ctx context.Context, secid string) (*StockInfo, error) {
+	s, err := api.getFromCache(ctx, secid)
+	if err == nil {
+		return s, nil
+	}
+
+	return api.getFromMoex(ctx, secid)
+}
+
+func (api *API) GetMultiple(ctx context.Context, secids ...string) (map[string]StockInfo, error) {
+	res := make(map[string]StockInfo)
+	for _, secid := range secids {
+		s, err := api.Get(ctx, secid)
+		if err != nil {
+			return nil, err
+		}
+		res[secid] = *s
+	}
+	return res, nil
+}
+
+func (api *API) getFromMoex(ctx context.Context, secid string) (*StockInfo, error) {
+	if err := api.updateCache(ctx); err != nil {
+		return nil, err
+	}
+
+	return api.getFromCache(ctx, secid)
+}
+
+func (api *API) updateCache(ctx context.Context) error {
+	gr, ectx := errgroup.WithContext(ctx)
+
+	loadAndCache := func(ctx context.Context, engine, market string) error {
+		data, err := api.loadSecuritiesPrices(ctx, engine, market)
+		if err != nil {
+			return err
+		}
+
+		return api.cacheData(ctx, data)
+	}
+	gr.Go(func() error {
+		return loadAndCache(ectx, EngineStock, MarketShares)
+	})
+	gr.Go(func() error {
+		return loadAndCache(ectx, EngineStock, MarketBonds)
+	})
+	gr.Go(func() error {
+		return loadAndCache(ectx, EngineStock, MarketIndex)
+	})
+	gr.Go(func() error {
+		return loadAndCache(ectx, EngineStock, MarketForeignShares)
+	})
+	gr.Go(func() error {
+		return loadAndCache(ectx, EngineStock, MarketForeignndm)
+	})
+
+	return gr.Wait()
+}
+
+func (api *API) loadSecuritiesPrices(ctx context.Context, engine, market string) (map[string]StockInfo, error) {
 	urlStr := "http://iss.moex.com/iss/engines/" + engine + "/markets/" + market + "/securities.json"
 
 	var respBody struct {
@@ -63,19 +128,27 @@ func (api *API) GetAllSecuritiesPrices(engine, market string) (map[string]StockI
 		} `json:"securities"`
 	}
 
-	if err := api.get(urlStr, &respBody); err != nil {
+	if err := api.get(ctx, urlStr, &respBody); err != nil {
 		return nil, errors.Wrap(err, "error while parsing response body")
 	}
 
 	const (
 		secidIndex     = 0
+		boardID        = 1
 		shortNameIndex = 2
 		prevPriceIndex = 15
 	)
 
-	res := make(map[string]StockInfo)
-
+	res := make(map[string]StockInfo, len(respBody.Securities.Data))
 	for i, data := range respBody.Securities.Data {
+		board, ok := data[boardID].(string)
+		if !ok {
+			return nil, errors.Errorf("BOARDID for data %d is not a string, got %T", i, data[boardID])
+		}
+		if board != "TQBR" {
+			continue
+		}
+
 		if data[prevPriceIndex] == nil { //price not available
 			continue
 		}
@@ -101,20 +174,45 @@ func (api *API) GetAllSecuritiesPrices(engine, market string) (map[string]StockI
 		}
 	}
 
-	if api.toCache {
-		api.cashe[engine+market] = res
-	}
-
 	return res, nil
 }
 
-func (api *API) get(urlStr string, respBody interface{}) error {
-	u, err := url.Parse(urlStr)
-	if err != nil {
-		return errors.Wrap(err, "error while parsing url")
+func (api *API) cacheData(ctx context.Context, data map[string]StockInfo) error {
+	for secid, info := range data {
+		item := cache.Item{
+			Ctx:   ctx,
+			Key:   secid,
+			Value: info,
+			TTL:   24 * time.Hour,
+		}
+		if err := api.cache.Set(&item); err != nil {
+			return err
+		}
 	}
 
-	resp, err := api.client.Get(u.String())
+	return nil
+}
+
+func (api *API) getFromCache(ctx context.Context, secID string) (*StockInfo, error) {
+	var s StockInfo
+	err := api.cache.Get(ctx, secID, &s)
+	if err != nil {
+		if errors.Is(err, cache.ErrCacheMiss) {
+			return nil, ErrNotFound
+		}
+		return nil, errors.Wrap(err, "error while retriving from cache")
+	}
+
+	return &s, nil
+}
+
+func (api *API) get(ctx context.Context, urlStr string, respBody interface{}) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
+	if err != nil {
+		return errors.Wrap(err, "error creating req")
+	}
+
+	resp, err := api.client.Do(req)
 	if err != nil {
 		return errors.Wrap(err, "fetching data from moex")
 	}

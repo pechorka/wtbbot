@@ -1,6 +1,7 @@
 package moex
 
 import (
+	"context"
 	_ "embed"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +11,9 @@ import (
 //go:embed test-resp.json
 var getAllSecuritiesPricesResp string
 
-func TestMoexAPI_GetAllSecuritiesPrices(t *testing.T) {
+func TestMoexAPI_loadSecuritiesPrices(t *testing.T) {
+	ctx := context.Background()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(getAllSecuritiesPricesResp))
 	}))
@@ -19,14 +22,14 @@ func TestMoexAPI_GetAllSecuritiesPrices(t *testing.T) {
 
 	api := New(Opts{Client: server.Client()})
 
-	prices, err := api.GetAllSecuritiesPrices(EngineStock, MarketShares)
+	prices, err := api.loadSecuritiesPrices(ctx, EngineStock, MarketShares)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	expected := map[string]StockInfo{
 		"AFKS": {
-			Price:     27.422,
+			Price:     27.785,
 			ShortName: "Система ао",
 		},
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strconv"
@@ -64,6 +65,7 @@ func (b *Bot) handle() {
 
 func (b *Bot) onStart(m *tb.Message) {
 	if b.isUserFinished(m) {
+		b.reply(m, "У вас уже заполнено партфолио. Для ввода партфолио заново воспользуйтесь командой /restart")
 		return
 	}
 	b.reply(m, "Начните вводить содержимое вашего партфолио сообщениями вида: тикер процент. Когда закончите ввод, введите /finish. Проценты должны суммироваться в 100")
@@ -71,6 +73,7 @@ func (b *Bot) onStart(m *tb.Message) {
 
 func (b *Bot) onText(m *tb.Message) {
 	if b.isUserFinished(m) {
+		b.reply(m, "У вас уже заполнено партфолио. Для ввода партфолио заново воспользуйтесь командой /restart")
 		return
 	}
 
@@ -128,13 +131,13 @@ func (b *Bot) view(m *tb.Message) {
 		b.onError(m, errors.Wrap(err, "error while retriving partfolio"))
 		return
 	}
-	infos, err := b.mapi.GetAllSecuritiesPrices(moex.EngineStock, moex.MarketShares)
+	infos, err := b.loadSecurityPrices(context.TODO(), m, partfolio)
 	if err != nil {
 		b.onError(m, errors.Wrap(err, "error while retriving prices"))
 		return
 	}
 	var reply strings.Builder
-	reply.WriteString("содержимое вашего портфеля")
+	reply.WriteString("содержимое вашего портфеля\n")
 	for secid := range partfolio {
 		reply.WriteString(fmt.Sprintf("%s - %q\n", secid, infos[secid].ShortName))
 	}
@@ -142,7 +145,8 @@ func (b *Bot) view(m *tb.Message) {
 }
 
 func (b *Bot) buy(m *tb.Message) {
-	if b.isUserFinished(m) {
+	if !b.isUserFinished(m) {
+		b.reply(m, "У вас еще не заполнено партфолио или вы не ввели команду /finish")
 		return
 	}
 	montlySum, err := strconv.ParseFloat(m.Payload, 32)
@@ -155,7 +159,7 @@ func (b *Bot) buy(m *tb.Message) {
 		b.onError(m, errors.Wrap(err, "error while retriving partfolio"))
 		return
 	}
-	info, err := b.mapi.GetAllSecuritiesPrices(moex.EngineStock, moex.MarketShares)
+	infos, err := b.loadSecurityPrices(context.TODO(), m, partfolio)
 	if err != nil {
 		b.onError(m, errors.Wrap(err, "error while retriving prices"))
 		return
@@ -163,10 +167,18 @@ func (b *Bot) buy(m *tb.Message) {
 	var reply strings.Builder
 	for secid, percent := range partfolio {
 		sum := montlySum * percent / 100
-		lots := sum / info[secid].Price
+		lots := sum / infos[secid].Price
 		reply.WriteString(fmt.Sprintf("%s - %f\n", secid, lots))
 	}
 	b.reply(m, reply.String())
+}
+
+func (b *Bot) loadSecurityPrices(ctx context.Context, m *tb.Message, partfolio store.Partfolio) (map[string]moex.StockInfo, error) {
+	secids := make([]string, 0, len(partfolio))
+	for secid := range partfolio {
+		secids = append(secids, secid)
+	}
+	return b.mapi.GetMultiple(ctx, secids...)
 }
 
 func (b *Bot) onError(m *tb.Message, err error) {
@@ -194,6 +206,5 @@ func (b *Bot) isUserFinished(m *tb.Message) bool {
 	if !finished {
 		return false
 	}
-	b.reply(m, "У вас уже заполнено партфолио. Для ввода партфолио заново воспользуйтесь командой /restart")
 	return true
 }

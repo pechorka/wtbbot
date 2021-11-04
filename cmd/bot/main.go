@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"log"
@@ -9,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-redis/cache/v8"
+	"github.com/go-redis/redis/v8"
 	"github.com/pechorka/whattobuy/moex"
 	"github.com/pechorka/whattobuy/store"
 	"github.com/pkg/errors"
@@ -19,6 +22,7 @@ type config struct {
 	TimeoutSec       int    `json:"timeout_seconds"`
 	CacheMOEXAPIResp bool   `json:"cache_moex_api_resp"`
 	StorePath        string `json:"store_path"`
+	RedisAddr        string `json:"redis_addr"`
 }
 
 func main() {
@@ -30,6 +34,7 @@ func main() {
 }
 
 func run() error {
+	ctx := context.Background()
 	cfgPath := flag.String("cfg", "", "")
 	flag.Parse()
 	f, err := os.Open(*cfgPath)
@@ -54,12 +59,34 @@ func run() error {
 		cerr := store.Close()
 		if cerr != nil {
 			log.Println("[ERROR] error while closing store: ", cerr.Error())
+			return
 		}
 		log.Println("[INFO] closed storage")
 	}()
 	log.Println("[INFO] opened storage")
 
-	api := moex.New(moex.Opts{ToCache: cfg.CacheMOEXAPIResp})
+	redisCLI := redis.NewClient(&redis.Options{
+		Addr: cfg.RedisAddr,
+	})
+
+	if err := redisCLI.Ping(ctx).Err(); err != nil {
+		return errors.Wrap(err, "error while pinging redis server")
+	}
+	log.Println("[INFO] connected to redis")
+	defer func() {
+		cerr := redisCLI.Close()
+		if cerr != nil {
+			log.Println("[ERROR] error while closing redis connection: ", cerr.Error())
+			return
+		}
+		log.Println("[INFO] closed redis connection")
+	}()
+
+	redisCache := cache.New(&cache.Options{
+		Redis: redisCLI,
+	})
+
+	api := moex.New(moex.Opts{Cache: redisCache})
 
 	b, err := NewBot(Opts{
 		Token:   cfg.Token,
