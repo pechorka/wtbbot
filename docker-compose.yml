@@ -9,6 +9,10 @@ services:
         - 9090:9090
       environment:
         REDIS_ADDR: wtbbot-redis:6379
+        TOKEN: $TOKEN
+        WEBHOOKURL: $WEBHOOKURL
+        TLSKEY: $TLSKEY
+        TLSCERT: $TLSCERT
   redis:
       image: redis:6.2.6-alpine3.14
       container_name: wtbbot-redis
