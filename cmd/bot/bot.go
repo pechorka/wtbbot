@@ -59,6 +59,7 @@ func (b *Bot) handle() {
 	b.telebot.Handle(tb.OnText, b.onText)
 	b.telebot.Handle("/view", b.view)
 	b.telebot.Handle("/buy", b.buy)
+	b.telebot.Handle("/finish", b.finish)
 }
 
 func (b *Bot) onStart(m *tb.Message) {
@@ -111,6 +112,16 @@ func (b *Bot) onText(m *tb.Message) {
 	b.reply(m, "Успешно добавлено")
 }
 
+func (b *Bot) finish(m *tb.Message) {
+	if err := b.store.Finish(m.Sender.ID); err != nil {
+		b.onError(m, errors.Wrap(err, "error while finishing user partfolio"))
+		return
+	}
+	b.reply(m, `Ваш портфель успешно сохранен.
+Для просмотра его содержимого введите команду /view.
+Для того чтобы узнать что купить на заданную сумму, введите /buy сумма`)
+}
+
 func (b *Bot) view(m *tb.Message) {
 	partfolio, err := b.store.GetPartfolio(m.Sender.ID)
 	if err != nil {
@@ -123,6 +134,7 @@ func (b *Bot) view(m *tb.Message) {
 		return
 	}
 	var reply strings.Builder
+	reply.WriteString("содержимое вашего портфеля")
 	for secid := range partfolio {
 		reply.WriteString(fmt.Sprintf("%s - %q\n", secid, infos[secid].ShortName))
 	}
@@ -179,9 +191,9 @@ func (b *Bot) isUserFinished(m *tb.Message) bool {
 		b.onError(m, errors.Wrap(err, "error while checking user state"))
 		return false
 	}
-	if finished {
-		b.reply(m, "У вас уже заполнено партфолио. Для ввода партфолио заново воспользуйтесь командой /restart")
+	if !finished {
 		return false
 	}
+	b.reply(m, "У вас уже заполнено партфолио. Для ввода партфолио заново воспользуйтесь командой /restart")
 	return true
 }
