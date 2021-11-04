@@ -14,6 +14,7 @@ services:
         WEBHOOKURL: $WEBHOOKURL
         TLSKEY: $TLSKEY
         TLSCERT: $TLSCERT
+        TIMEOUT_SECONDS: $TIMEOUT_SECONDS
   redis:
       image: redis:6.2.6-alpine3.14
       container_name: wtbbot-redis
