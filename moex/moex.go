@@ -74,7 +74,10 @@ func (api *API) GetMultiple(ctx context.Context, secids ...string) (map[string]S
 	res := make(map[string]StockInfo)
 	for _, secid := range secids {
 		s, err := api.Get(ctx, secid)
-		if err != nil && err != ErrNotFound {
+		if err != nil {
+			if err == ErrNotFound {
+				continue
+			}
 			return nil, err
 		}
 		res[secid] = *s
