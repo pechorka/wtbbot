@@ -15,6 +15,5 @@ FROM alpine
 WORKDIR /bot
 
 COPY --from=builder /go/src/github.com/pechorka/whattobuy/bin/bot wtbbot
-COPY --from=builder /go/src/github.com/pechorka/whattobuy/var/cert cert
 
 CMD ["./wtbbot"]

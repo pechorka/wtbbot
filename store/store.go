@@ -34,7 +34,7 @@ func (s *Store) Close() error {
 
 type Partfolio map[string]float64
 
-func (s *Store) AddToPartfolio(userID int, secid string, percent float64) error {
+func (s *Store) AddToPartfolio(userID int, secidPercent map[string]float64) error {
 	return s.db.Update(func(txn *badger.Txn) error {
 		finished, err := s.isUserFinished(txn, userID)
 		if err != nil {
@@ -44,8 +44,14 @@ func (s *Store) AddToPartfolio(userID int, secid string, percent float64) error 
 			return ErrUserIsFinished
 		}
 
-		key := getPartfolioPrefix(userID) + secid
-		return txn.Set([]byte(key), float64ToBytes(percent))
+		for secid, percent := range secidPercent {
+			key := getPartfolioPrefix(userID) + secid
+			if err := txn.Set([]byte(key), float64ToBytes(percent)); err != nil {
+				return err
+			}
+		}
+
+		return nil
 	})
 }
 

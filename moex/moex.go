@@ -29,7 +29,14 @@ const (
 	MarketBonds         = "bonds"
 	MarketIndex         = "index"
 	MarketForeignShares = "foreignshares"
-	MarketForeignndm    = "foreignndm"
+)
+
+const (
+	BoardStock          = "TQBR"
+	BoardForeignStock   = "FQBR"
+	BoardIndex          = "TQTF"
+	BoardTreasuries     = "TQOB"
+	BoardCorporateBonds = "TQCB"
 )
 
 type API struct {
@@ -96,39 +103,41 @@ func (api *API) getFromMoex(ctx context.Context, secid string) (*StockInfo, erro
 func (api *API) UpdateCache(ctx context.Context) error {
 	gr, ectx := errgroup.WithContext(ctx)
 
-	loadAndCache := func(ctx context.Context, engine, market string) error {
-		data, err := api.loadSecuritiesPrices(ctx, engine, market)
+	loadAndCache := func(ctx context.Context, engine, market, board string) error {
+		data, err := api.loadSecuritiesPrices(ctx, engine, market, board)
 		if err != nil {
+			log.Printf("[ERROR] while loading for engine: %s, market: %s, board: %s, err: %v\n", engine, market, board, err)
 			return err
 		}
 
 		return api.cacheData(ctx, data)
 	}
 	gr.Go(func() error {
-		return loadAndCache(ectx, EngineStock, MarketShares)
+		return loadAndCache(ectx, EngineStock, MarketShares, BoardStock)
 	})
 	gr.Go(func() error {
-		return loadAndCache(ectx, EngineStock, MarketBonds)
+		return loadAndCache(ectx, EngineStock, MarketBonds, BoardTreasuries)
 	})
 	gr.Go(func() error {
-		return loadAndCache(ectx, EngineStock, MarketIndex)
+		return loadAndCache(ectx, EngineStock, MarketBonds, BoardCorporateBonds)
 	})
 	gr.Go(func() error {
-		return loadAndCache(ectx, EngineStock, MarketForeignShares)
+		return loadAndCache(ectx, EngineStock, MarketShares, BoardIndex)
 	})
 	gr.Go(func() error {
-		return loadAndCache(ectx, EngineStock, MarketForeignndm)
+		return loadAndCache(ectx, EngineStock, MarketForeignShares, BoardForeignStock)
 	})
 
 	return gr.Wait()
 }
 
-func (api *API) loadSecuritiesPrices(ctx context.Context, engine, market string) (map[string]StockInfo, error) {
-	urlStr := "http://iss.moex.com/iss/engines/" + engine + "/markets/" + market + "/securities.json"
+func (api *API) loadSecuritiesPrices(ctx context.Context, engine, market, board string) (map[string]StockInfo, error) {
+	urlStr := "http://iss.moex.com/iss/engines/" + engine + "/markets/" + market + "/boards/" + board + "/securities.json?iss.meta=off&iss.only=securities"
 
 	var respBody struct {
 		Securities struct {
-			Data [][]interface{} `json:"data"`
+			Columns []string        `json:"columns"`
+			Data    [][]interface{} `json:"data"`
 		} `json:"securities"`
 	}
 
@@ -136,25 +145,29 @@ func (api *API) loadSecuritiesPrices(ctx context.Context, engine, market string)
 		return nil, errors.Wrap(err, "error while parsing response body")
 	}
 
-	const (
-		secidIndex     = 0
-		boardID        = 1
-		shortNameIndex = 2
-		lotSizeIndex   = 4
-		prevPriceIndex = 15
+	var (
+		secidIndex     int
+		shortNameIndex int
+		lotSizeIndex   int
+		priceIndex     int
 	)
+
+	for i, column := range respBody.Securities.Columns {
+		switch column {
+		case "SECID":
+			secidIndex = i
+		case "SHORTNAME":
+			shortNameIndex = i
+		case "LOTSIZE":
+			lotSizeIndex = i
+		case "PREVADMITTEDQUOTE":
+			priceIndex = i
+		}
+	}
 
 	res := make(map[string]StockInfo, len(respBody.Securities.Data))
 	for i, data := range respBody.Securities.Data {
-		board, ok := data[boardID].(string)
-		if !ok {
-			return nil, errors.Errorf("BOARDID for data %d is not a string, got %T", i, data[boardID])
-		}
-		if board != "TQBR" {
-			continue
-		}
-
-		if data[prevPriceIndex] == nil { //price not available
+		if data[priceIndex] == nil { //price not available
 			continue
 		}
 
@@ -168,9 +181,9 @@ func (api *API) loadSecuritiesPrices(ctx context.Context, engine, market string)
 			return nil, errors.Errorf("SHORTNAME for data %d is not a string, got %T", i, data[shortNameIndex])
 		}
 
-		prevPrice, ok := data[prevPriceIndex].(float64)
+		prevPrice, ok := data[priceIndex].(float64)
 		if !ok {
-			return nil, errors.Errorf("PREVWAPRICE for data %d is not a number, got %T", i, data[prevPriceIndex])
+			return nil, errors.Errorf("PREVWAPRICE for data %d is not a number, got %T", i, data[priceIndex])
 		}
 
 		lotSize, ok := data[lotSizeIndex].(float64)

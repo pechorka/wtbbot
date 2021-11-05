@@ -22,7 +22,7 @@ func TestMoexAPI_loadSecuritiesPrices(t *testing.T) {
 
 	api := New(Opts{Client: server.Client()})
 
-	prices, err := api.loadSecuritiesPrices(ctx, EngineStock, MarketShares)
+	prices, err := api.loadSecuritiesPrices(ctx, EngineStock, MarketShares, BoardStock)
 	if err != nil {
 		t.Fatal(err)
 	}

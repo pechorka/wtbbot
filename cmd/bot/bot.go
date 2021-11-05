@@ -95,16 +95,33 @@ func (b *Bot) onText(m *tb.Message) {
 		return
 	}
 
-	input := strings.Split(m.Text, " ")
-	if len(input) != 2 {
-		b.onInvalidInput(m, errors.New("ожидается формат тикер процент"))
-		return
+	readInput := func(s string) (string, float64, error) {
+		input := strings.Split(s, " ")
+		if len(input) != 2 {
+
+			return "", 0, errors.New("ожидается формат тикер процент")
+		}
+
+		percent, err := strconv.ParseFloat(input[1], 64)
+		if err != nil {
+			return "", 0, errors.Wrap(err, "процент не число")
+		}
+
+		return input[0], percent, nil
 	}
 
-	percent, err := strconv.ParseFloat(input[1], 64)
-	if err != nil {
-		b.onInvalidInput(m, errors.Wrap(err, "процент не число"))
-		return
+	var (
+		userInput  = make(map[string]float64)
+		sumPercent float64
+	)
+	for _, s := range strings.Split(m.Text, "\n") {
+		secid, percent, err := readInput(s)
+		if err != nil {
+			b.onInvalidInput(m, err)
+			return
+		}
+		userInput[secid] = percent
+		sumPercent += percent
 	}
 
 	partfolio, err := b.store.GetPartfolio(m.Sender.ID)
@@ -115,18 +132,18 @@ func (b *Bot) onText(m *tb.Message) {
 
 	var sp float64
 	for secid, p := range partfolio {
-		if secid == input[0] {
+		if _, ok := userInput[secid]; ok { // we replace current value, no need to count it
 			continue
 		}
 		sp += p
 	}
 
-	if sp+percent > 100 {
+	if sp+sumPercent > 100 {
 		b.onInvalidInput(m, errors.Errorf("Нельзя добавить такой процент, будет больше 100. Доступно для ввода %f", 100-sp))
 		return
 	}
 
-	if err = b.store.AddToPartfolio(m.Sender.ID, input[0], percent); err != nil {
+	if err = b.store.AddToPartfolio(m.Sender.ID, userInput); err != nil {
 		b.onError(m, errors.Wrap(err, "error while upadating partfolio"))
 		return
 	}
