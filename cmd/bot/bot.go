@@ -114,12 +114,19 @@ func (b *Bot) onText(m *tb.Message) {
 	var (
 		userInput  = make(map[string]float64)
 		sumPercent float64
+		notFound   []string
 	)
 	for _, s := range strings.Split(m.Text, "\n") {
 		secid, percent, err := readInput(s)
 		if err != nil {
 			b.onInvalidInput(m, err)
 			return
+		}
+		_, err = b.mapi.Get(context.TODO(), secid)
+		if err != nil {
+			log.Printf("[ERROR] while fetching data from moex: %v\n", err)
+			notFound = append(notFound, secid)
+			continue
 		}
 		userInput[secid] = percent
 		sumPercent += percent
@@ -146,6 +153,19 @@ func (b *Bot) onText(m *tb.Message) {
 
 	if err = b.store.AddToPartfolio(m.Sender.ID, userInput); err != nil {
 		b.onError(m, errors.Wrap(err, "error while upadating partfolio"))
+		return
+	}
+	if len(notFound) > 0 {
+		found := make([]string, 0, len(userInput))
+		for secid := range userInput {
+			found = append(found, secid)
+		}
+		var reply string
+		if len(found) > 0 {
+			reply = "Были добавлены бумаги:\n" + strings.Join(found, "\n") + "\n"
+		}
+		reply += "Часть бумаг была не найдена:\n" + strings.Join(notFound, "\n")
+		b.reply(m, reply)
 		return
 	}
 	b.reply(m, "Успешно добавлено")
