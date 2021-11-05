@@ -151,6 +151,19 @@ func (b *Bot) onText(m *tb.Message) {
 }
 
 func (b *Bot) finish(m *tb.Message) {
+	partfolio, err := b.store.GetPartfolio(m.Sender.ID)
+	if err != nil {
+		b.onError(m, errors.Wrap(err, "error while retriving partfolio"))
+		return
+	}
+	var sp float64
+	for _, p := range partfolio {
+		sp += p
+	}
+	if sp < 100 {
+		b.onInvalidInput(m, errors.Errorf("В вашем партфолио доли складываются не в 100%%, а в %.2f%%", sp))
+		return
+	}
 	if err := b.store.Finish(m.Sender.ID); err != nil {
 		b.onError(m, errors.Wrap(err, "error while finishing user partfolio"))
 		return
