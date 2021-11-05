@@ -83,6 +83,10 @@ func run() error {
 
 	api := moex.New(moex.Opts{Cache: redisCache})
 
+	if err := api.UpdateCache(ctx); err != nil {
+		return errors.Wrap(err, "error while updating cache")
+	}
+
 	b, err := NewBot(&Opts{
 		Token:      cfg.Token,
 		Timeout:    time.Duration(cfg.TimeoutSec) * time.Second,
