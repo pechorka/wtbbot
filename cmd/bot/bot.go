@@ -76,9 +76,10 @@ func (b *Bot) Stop() {
 func (b *Bot) handle() {
 	b.telebot.Handle("/start", b.onStart)
 	b.telebot.Handle(tb.OnText, b.onText)
-	b.telebot.Handle("/view", b.view)
-	b.telebot.Handle("/buy", b.buy)
-	b.telebot.Handle("/finish", b.finish)
+	b.telebot.Handle("/view", b.onView)
+	b.telebot.Handle("/buy", b.onBuy)
+	b.telebot.Handle("/finish", b.onFinish)
+	b.telebot.Handle("/restart", b.onRestart)
 }
 
 func (b *Bot) onStart(m *tb.Message) {
@@ -150,7 +151,7 @@ func (b *Bot) onText(m *tb.Message) {
 	b.reply(m, "Успешно добавлено")
 }
 
-func (b *Bot) finish(m *tb.Message) {
+func (b *Bot) onFinish(m *tb.Message) {
 	partfolio, err := b.store.GetPartfolio(m.Sender.ID)
 	if err != nil {
 		b.onError(m, errors.Wrap(err, "error while retriving partfolio"))
@@ -173,7 +174,25 @@ func (b *Bot) finish(m *tb.Message) {
 Для того чтобы узнать что купить на заданную сумму, введите /buy сумма`)
 }
 
-func (b *Bot) view(m *tb.Message) {
+func (b *Bot) onRestart(m *tb.Message) {
+	partfolio, err := b.store.GetPartfolio(m.Sender.ID)
+	if err != nil {
+		b.onError(m, errors.Wrap(err, "error while retriving partfolio"))
+		return
+	}
+	if err := b.store.ClearData(m.Sender.ID); err != nil {
+		b.onError(m, errors.Wrap(err, "error while deleting partfolio"))
+		return
+	}
+	var reply strings.Builder
+	reply.WriteString("Ваш портфель удален. На случай если вы сделали это случайно, вот команда для его восстановления:\n")
+	for secid, percent := range partfolio {
+		reply.WriteString(fmt.Sprintf("%s %.2f\n", secid, percent))
+	}
+	b.reply(m, reply.String())
+}
+
+func (b *Bot) onView(m *tb.Message) {
 	partfolio, err := b.store.GetPartfolio(m.Sender.ID)
 	if err != nil {
 		b.onError(m, errors.Wrap(err, "error while retriving partfolio"))
@@ -192,7 +211,7 @@ func (b *Bot) view(m *tb.Message) {
 	b.reply(m, reply.String())
 }
 
-func (b *Bot) buy(m *tb.Message) {
+func (b *Bot) onBuy(m *tb.Message) {
 	if !b.isUserFinished(m) {
 		b.reply(m, "У вас еще не заполнено партфолио или вы не ввели команду /finish")
 		return

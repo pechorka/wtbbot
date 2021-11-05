@@ -103,6 +103,25 @@ func (s *Store) GetPartfolio(userID int) (Partfolio, error) {
 	return partfolio, err
 }
 
+func (s *Store) ClearData(userID int) error {
+	return s.db.Update(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
+		prefix := getPartfolioPrefix(userID)
+		bprefix := []byte(prefix)
+
+		for it.Seek(bprefix); it.ValidForPrefix(bprefix); it.Next() {
+			err := txn.Delete(it.Item().Key())
+			if err != nil {
+				return err
+			}
+		}
+
+		finishKey := getFinishedKey(userID)
+		return txn.Delete([]byte(finishKey))
+	})
+}
+
 func (s *Store) isUserFinished(txn *badger.Txn, userID int) (bool, error) {
 	_, err := txn.Get([]byte(getFinishedKey(userID)))
 
