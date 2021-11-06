@@ -184,7 +184,7 @@ func (b *Bot) onText(m *tb.Message) {
 			reply.WriteString(fmt.Sprintf("%s - %.2f%%\n", noRM(secid), percent))
 		}
 		for secid, percent := range userInput {
-			reply.WriteString(fmt.Sprintf("%s - %.2f%%", noRM(secid), percent))
+			reply.WriteString(fmt.Sprintf("%s - %.2f%%\n", noRM(secid), percent))
 		}
 		b.reply(m, reply.String())
 	}
