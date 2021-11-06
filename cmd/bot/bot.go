@@ -122,7 +122,14 @@ func (b *Bot) onText(m *tb.Message) {
 			b.onInvalidInput(m, err)
 			return
 		}
+		secid = strings.ToUpper(secid)
 		_, err = b.mapi.Get(context.TODO(), secid)
+		if err == moex.ErrNotFound {
+			_, err = b.mapi.Get(context.TODO(), secid+"-RM")
+			if err == nil {
+				secid += "-RM"
+			}
+		}
 		if err != nil {
 			log.Printf("[ERROR] while fetching data from moex: %v\n", err)
 			notFound = append(notFound, secid)
@@ -147,7 +154,7 @@ func (b *Bot) onText(m *tb.Message) {
 	}
 
 	if sp+sumPercent > 100 {
-		b.onInvalidInput(m, errors.Errorf("Нельзя добавить такой процент, будет больше 100. Доступно для ввода %f", 100-sp))
+		b.onInvalidInput(m, errors.Errorf("Нельзя добавить такой процент, будет больше 100. Доступно для ввода %.2f", 100-sp))
 		return
 	}
 
@@ -174,7 +181,7 @@ func (b *Bot) onText(m *tb.Message) {
 		var reply strings.Builder
 		reply.WriteString("Сумма долей достигла 100%. Хотите завершить ввод портфеля - нажмите /finish. Портфель на данный момент выглядит так:\n")
 		for secid, percent := range partfolio {
-			reply.WriteString(fmt.Sprintf("%s - %.2f%%", secid, percent))
+			reply.WriteString(fmt.Sprintf("%s - %.2f%%", noRM(secid), percent))
 		}
 		b.reply(m, reply.String())
 	}
@@ -216,9 +223,13 @@ func (b *Bot) onRestart(m *tb.Message) {
 	var reply strings.Builder
 	reply.WriteString("Ваш портфель удален. На случай если вы сделали это случайно, вот команда для его восстановления:\n")
 	for secid, percent := range partfolio {
-		reply.WriteString(fmt.Sprintf("%s %.2f\n", secid, percent))
+		reply.WriteString(fmt.Sprintf("%s %.2f\n", noRM(secid), percent))
 	}
 	b.reply(m, reply.String())
+}
+
+func noRM(secid string) string {
+	return strings.TrimSuffix(secid, "-RM")
 }
 
 func (b *Bot) onView(m *tb.Message) {
@@ -235,7 +246,7 @@ func (b *Bot) onView(m *tb.Message) {
 	var reply strings.Builder
 	reply.WriteString("содержимое вашего портфеля\n")
 	for secid, percent := range partfolio {
-		reply.WriteString(fmt.Sprintf("(%.2f%%) %s - %q\n", percent, secid, infos[secid].ShortName))
+		reply.WriteString(fmt.Sprintf("(%.2f%%) %s - %q\n", percent, noRM(secid), infos[secid].ShortName))
 	}
 	b.reply(m, reply.String())
 }
