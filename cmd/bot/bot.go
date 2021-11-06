@@ -169,6 +169,15 @@ func (b *Bot) onText(m *tb.Message) {
 		return
 	}
 	b.reply(m, "Успешно добавлено")
+
+	if sp+sumPercent == 100 {
+		var reply strings.Builder
+		reply.WriteString("Сумма долей достигла 100%. Хотите завершить ввод портфеля - нажмите /finish. Портфель на данный момент выглядит так:\n")
+		for secid, percent := range partfolio {
+			reply.WriteString(fmt.Sprintf("%s - %.2f%%", secid, percent))
+		}
+		b.reply(m, reply.String())
+	}
 }
 
 func (b *Bot) onFinish(m *tb.Message) {
@@ -225,8 +234,8 @@ func (b *Bot) onView(m *tb.Message) {
 	}
 	var reply strings.Builder
 	reply.WriteString("содержимое вашего портфеля\n")
-	for secid := range partfolio {
-		reply.WriteString(fmt.Sprintf("%s - %q\n", secid, infos[secid].ShortName))
+	for secid, percent := range partfolio {
+		reply.WriteString(fmt.Sprintf("(%.2f%%) %s - %q\n", percent, secid, infos[secid].ShortName))
 	}
 	b.reply(m, reply.String())
 }
