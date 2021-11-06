@@ -84,15 +84,15 @@ func (b *Bot) handle() {
 
 func (b *Bot) onStart(m *tb.Message) {
 	if b.isUserFinished(m) {
-		b.reply(m, "У вас уже заполнено партфолио. Для ввода партфолио заново воспользуйтесь командой /restart")
+		b.reply(m, "У вас уже заполнен портфель. Для ввода портфеля заново воспользуйтесь командой /restart")
 		return
 	}
-	b.reply(m, "Начните вводить содержимое вашего партфолио сообщениями вида: тикер процент. Когда закончите ввод, введите /finish. Проценты должны суммироваться в 100. Если где-то ошиблись, то введите этот тикет заново - процент заменится. Или введит /restart и начните заново")
+	b.reply(m, "Начните вводить желаемую структуру вашего портфеля сообщениями вида: 'тикер процент'.  Например, FXMM 30 или RU000A0JS1W0 10. В одном сообщении может быть несколько позиций - каждая на новой строчке. Когда закончите ввод, введите /finish. Проценты должны суммироваться в 100. Если где-то ошиблись, то введите эту позицию заново - процент заменится. Для удаления позиции обнулите её. Для глобальных изменнкний есть команда /restart :)")
 }
 
 func (b *Bot) onText(m *tb.Message) {
 	if b.isUserFinished(m) {
-		b.reply(m, "У вас уже заполнено партфолио. Для ввода партфолио заново воспользуйтесь командой /restart")
+		b.reply(m, "У вас уже заполнен портфель. Для ввода портфеля заново воспользуйтесь командой /restart")
 		return
 	}
 
@@ -100,12 +100,12 @@ func (b *Bot) onText(m *tb.Message) {
 		input := strings.Split(s, " ")
 		if len(input) != 2 {
 
-			return "", 0, errors.New("ожидается формат тикер процент")
+			return "", 0, errors.New("Некорректный формат: ожидается формат 'тикер процент'")
 		}
 
 		percent, err := strconv.ParseFloat(input[1], 64)
 		if err != nil {
-			return "", 0, errors.Wrap(err, "процент не число")
+			return "", 0, errors.Wrap(err, "Укажите количество корректно, сейчас так: ")
 		}
 
 		return input[0], percent, nil
@@ -141,7 +141,7 @@ func (b *Bot) onText(m *tb.Message) {
 
 	partfolio, err := b.store.GetPartfolio(m.Sender.ID)
 	if err != nil {
-		b.onError(m, errors.Wrap(err, "while retriving partfolio"))
+		b.onError(m, errors.Wrap(err, "error while retriving portfolio"))
 		return
 	}
 
@@ -154,12 +154,12 @@ func (b *Bot) onText(m *tb.Message) {
 	}
 
 	if sp+sumPercent > 100 {
-		b.onInvalidInput(m, errors.Errorf("Нельзя добавить такой процент, будет больше 100. Доступно для ввода %.2f", 100-sp))
+		b.onInvalidInput(m, errors.Errorf("Нельзя добавить такой процент, будет больше 100. Доступно для ввода %.2f, а сейчас есть %.2f", 100-sp, sp))
 		return
 	}
 
 	if err = b.store.AddToPartfolio(m.Sender.ID, userInput); err != nil {
-		b.onError(m, errors.Wrap(err, "error while upadating partfolio"))
+		b.onError(m, errors.Wrap(err, "error while upadating portfolio"))
 		return
 	}
 	if len(notFound) > 0 {
@@ -175,13 +175,13 @@ func (b *Bot) onText(m *tb.Message) {
 		b.reply(m, reply)
 		return
 	}
-	b.reply(m, "Успешно добавлено")
+	b.reply(m, "Успешно изменено")
 
 	if sp+sumPercent == 100 {
 		var reply strings.Builder
 		reply.WriteString("Сумма долей достигла 100%. Хотите завершить ввод портфеля - нажмите /finish. Портфель на данный момент выглядит так:\n")
 		for secid, percent := range partfolio {
-			reply.WriteString(fmt.Sprintf("%s - %.2f%%", noRM(secid), percent))
+			reply.WriteString(fmt.Sprintf("%s - %.2f%%\n", noRM(secid), percent))
 		}
 		b.reply(m, reply.String())
 	}
@@ -190,7 +190,7 @@ func (b *Bot) onText(m *tb.Message) {
 func (b *Bot) onFinish(m *tb.Message) {
 	partfolio, err := b.store.GetPartfolio(m.Sender.ID)
 	if err != nil {
-		b.onError(m, errors.Wrap(err, "error while retriving partfolio"))
+		b.onError(m, errors.Wrap(err, "error while retriving portfolio"))
 		return
 	}
 	var sp float64
@@ -198,30 +198,30 @@ func (b *Bot) onFinish(m *tb.Message) {
 		sp += p
 	}
 	if sp < 100 {
-		b.onInvalidInput(m, errors.Errorf("В вашем партфолио доли складываются не в 100%%, а в %.2f%%", sp))
+		b.onInvalidInput(m, errors.Errorf("В вашем портфель доли складываются не в 100%%, а в %.2f%%", sp))
 		return
 	}
 	if err := b.store.Finish(m.Sender.ID); err != nil {
-		b.onError(m, errors.Wrap(err, "error while finishing user partfolio"))
+		b.onError(m, errors.Wrap(err, "error while finishing user portfolio"))
 		return
 	}
 	b.reply(m, `Ваш портфель успешно сохранен.
 Для просмотра его содержимого введите команду /view.
-Для того чтобы узнать что купить на заданную сумму, введите /buy сумма`)
+Для того чтобы узнать, что купить на заданную сумму, введите '/buy сумма'`)
 }
 
 func (b *Bot) onRestart(m *tb.Message) {
 	partfolio, err := b.store.GetPartfolio(m.Sender.ID)
 	if err != nil {
-		b.onError(m, errors.Wrap(err, "error while retriving partfolio"))
+		b.onError(m, errors.Wrap(err, "error while retriving portfolio"))
 		return
 	}
 	if err := b.store.ClearData(m.Sender.ID); err != nil {
-		b.onError(m, errors.Wrap(err, "error while deleting partfolio"))
+		b.onError(m, errors.Wrap(err, "error while deleting portfolio"))
 		return
 	}
 	var reply strings.Builder
-	reply.WriteString("Ваш портфель удален. На случай если вы сделали это случайно, вот команда для его восстановления:\n")
+	reply.WriteString("Ваш портфель удалён. На случай, если вы сделали это случайно, скопируйте это сообщение:\n")
 	for secid, percent := range partfolio {
 		reply.WriteString(fmt.Sprintf("%s %.2f\n", noRM(secid), percent))
 	}
@@ -235,7 +235,7 @@ func noRM(secid string) string {
 func (b *Bot) onView(m *tb.Message) {
 	partfolio, err := b.store.GetPartfolio(m.Sender.ID)
 	if err != nil {
-		b.onError(m, errors.Wrap(err, "error while retriving partfolio"))
+		b.onError(m, errors.Wrap(err, "error while retriving portfolio"))
 		return
 	}
 	infos, err := b.loadSecurityPrices(context.TODO(), m, partfolio)
@@ -243,6 +243,12 @@ func (b *Bot) onView(m *tb.Message) {
 		b.onError(m, errors.Wrap(err, "error while retriving prices"))
 		return
 	}
+
+	if len(partfolio) == 0 {
+		b.reply(m, "Портфель сейчас пуст. Добавляйте сообщения вида 'тикер процент'")
+		return
+	}
+
 	var reply strings.Builder
 	reply.WriteString("содержимое вашего портфеля\n")
 	for secid, percent := range partfolio {
@@ -253,17 +259,17 @@ func (b *Bot) onView(m *tb.Message) {
 
 func (b *Bot) onBuy(m *tb.Message) {
 	if !b.isUserFinished(m) {
-		b.reply(m, "У вас еще не заполнено партфолио или вы не ввели команду /finish")
+		b.reply(m, "У вас еще не заполнен портфель или вы не ввели команду /finish")
 		return
 	}
 	capital, err := strconv.ParseFloat(m.Payload, 32)
 	if err != nil {
-		b.onInvalidInput(m, errors.Wrap(err, "сумма на покупку не число"))
+		b.onInvalidInput(m, errors.Wrapf(err, "Сумма на покупку не число, а %s\n", m.Payload))
 		return
 	}
 	partfolio, err := b.store.GetPartfolio(m.Sender.ID)
 	if err != nil {
-		b.onError(m, errors.Wrap(err, "error while retriving partfolio"))
+		b.onError(m, errors.Wrap(err, "error while retriving portfolio"))
 		return
 	}
 	infos, err := b.loadSecurityPrices(context.TODO(), m, partfolio)
@@ -280,16 +286,21 @@ func (b *Bot) onBuy(m *tb.Message) {
 		sum := capital * percent / 100
 		lots := sum / info.Price
 		if lots < info.LotSize {
-			reply.WriteString(fmt.Sprintf("%s - %.0f%% капитала недостаточно, чтобы купить 1 лот (можно купить %.0f акций, а размер лота %.0f акций)\n", secid, percent, lots, info.LotSize))
-			continue
+			if lots == 0 {
+				reply.WriteString(fmt.Sprintf("%s - %.2f%% 💩 суммы недостаточно, чтобы купить 1 ценную бумагу. Она стоит %.2f, что меньше %.2f. \n", secid, percent, info.Price, sum))
+				continue
+			} else {
+				reply.WriteString(fmt.Sprintf("%s - %.2f%% 💩 суммы недостаточно, чтобы купить 1 лот (можно купить %.0f ценных бумаг, а в одном лоте %.0f ценных бумаг)\n", secid, percent, lots, info.LotSize))
+				continue
+			}
 		}
 		lots /= info.LotSize
 		lots = float64(int(lots))
 		spendMoney := lots * info.Price * info.LotSize
-		reply.WriteString(fmt.Sprintf("%s - %.0f лотов (%.2f денег)\n", secid, lots, spendMoney))
+		reply.WriteString(fmt.Sprintf("%s - %.0f лотов (на %.2f у.е.)\n", secid, lots, spendMoney))
 		totalSpend += spendMoney
 	}
-	reply.WriteString(fmt.Sprintf("Итого на покупку уйдет %.2f", totalSpend))
+	reply.WriteString(fmt.Sprintf("\n🥳Итого на покупку уйдет %.2f рублей", totalSpend))
 	b.reply(m, reply.String())
 }
 
