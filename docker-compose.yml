@@ -15,9 +15,9 @@ services:
         TLSKEY: $TLSKEY
         TLSCERT: $TLSCERT
         TIMEOUT_SECONDS: $TIMEOUT_SECONDS
-        STORE_PATH: $STORE_PATH
+        STORE_PATH: /var/lib/wtbbotdb
       volumes:
-        - /var/lib/wtbbotdb:/var/lib/wtbbotdb
+        - ./var:/var/lib/wtbbotdb
   redis:
       image: redis:6.2.6-alpine3.14
       container_name: wtbbot-redis
