@@ -290,10 +290,10 @@ func (b *Bot) onBuy(m *tb.Message) {
 		lots := sum / info.Price
 		if lots < info.LotSize {
 			if lots == 0 {
-				reply.WriteString(fmt.Sprintf("%s - %.2f%% 💩 суммы недостаточно, чтобы купить 1 ценную бумагу. Она стоит %.2f, что меньше %.2f. \n", secid, percent, info.Price, sum))
+				reply.WriteString(fmt.Sprintf("💩 %s - %.2f%% суммы недостаточно, чтобы купить 1 ценную бумагу. Она стоит %.2f, что меньше %.2f. \n", secid, percent, info.Price, sum))
 				continue
 			} else {
-				reply.WriteString(fmt.Sprintf("%s - %.2f%% 💩 суммы недостаточно, чтобы купить 1 лот (можно купить %.0f ценных бумаг, а в одном лоте %.0f ценных бумаг)\n", secid, percent, lots, info.LotSize))
+				reply.WriteString(fmt.Sprintf("💩 %s - %.2f%% суммы недостаточно, чтобы купить 1 лот (можно купить %.0f ценных бумаг, а в одном лоте %.0f ценных бумаг)\n", secid, percent, lots, info.LotSize))
 				continue
 			}
 		}
