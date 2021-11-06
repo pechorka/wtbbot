@@ -183,6 +183,9 @@ func (b *Bot) onText(m *tb.Message) {
 		for secid, percent := range partfolio {
 			reply.WriteString(fmt.Sprintf("%s - %.2f%%\n", noRM(secid), percent))
 		}
+		for secid, percent := range userInput {
+			reply.WriteString(fmt.Sprintf("%s - %.2f%%", noRM(secid), percent))
+		}
 		b.reply(m, reply.String())
 	}
 }
