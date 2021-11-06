@@ -46,7 +46,14 @@ func (s *Store) AddToPartfolio(userID int, secidPercent map[string]float64) erro
 
 		for secid, percent := range secidPercent {
 			key := getPartfolioPrefix(userID) + secid
-			if err := txn.Set([]byte(key), float64ToBytes(percent)); err != nil {
+			var err error
+			switch percent {
+			case 0:
+				err = txn.Delete([]byte(key))
+			default:
+				err = txn.Set([]byte(key), float64ToBytes(percent))
+			}
+			if err != nil {
 				return err
 			}
 		}
