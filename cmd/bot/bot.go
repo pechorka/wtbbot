@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -287,19 +288,20 @@ func (b *Bot) onBuy(m *tb.Message) {
 	for secid, percent := range partfolio {
 		info := infos[secid]
 		sum := capital * percent / 100
-		lots := sum / info.Price
-		if lots < info.LotSize {
-			if lots == 0 {
+		stockCount := sum / info.Price
+		if stockCount < info.LotSize {
+			holeStockCount, _ := math.Modf(stockCount)
+			if holeStockCount == 0 {
 				reply.WriteString(fmt.Sprintf("💩 %s - %.2f%% суммы недостаточно, чтобы купить 1 ценную бумагу. Она стоит %.2f, что меньше %.2f. \n", secid, percent, info.Price, sum))
 				continue
 			} else {
-				reply.WriteString(fmt.Sprintf("💩 %s - %.2f%% суммы недостаточно, чтобы купить 1 лот (можно купить %.0f ценных бумаг, а в одном лоте %.0f ценных бумаг)\n", secid, percent, lots, info.LotSize))
+				reply.WriteString(fmt.Sprintf("💩 %s - %.2f%% суммы недостаточно, чтобы купить 1 лот (можно купить %.0f ценных бумаг, а в одном лоте %.0f ценных бумаг)\n", secid, percent, holeStockCount, info.LotSize))
 				continue
 			}
 		}
-		lots /= info.LotSize
+		lots := stockCount / info.LotSize
 		lots = float64(int(lots))
-		spendMoney := lots * info.Price * info.LotSize
+		spendMoney := lots * info.Price
 		reply.WriteString(fmt.Sprintf("%s - %.0f лотов (на %.2f у.е.)\n", secid, lots, spendMoney))
 		totalSpend += spendMoney
 	}
